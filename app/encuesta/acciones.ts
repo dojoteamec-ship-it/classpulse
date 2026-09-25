@@ -199,3 +199,49 @@ export async function enviarRespuestaCinturon(envio: EnvioCinturon): Promise<Res
   }
   return { ok: true };
 }
+
+// Buzón abierto (/buzon): texto libre y elección de identidad. Pasa por R1 y R4.
+export async function enviarBuzon(envio: {
+  texto: string;
+  modo: "anonimo" | "nombre" | "contacto";
+  nombre?: string;
+  email?: string;
+  telefono?: string;
+  contactoMotivo?: string;
+  contactoCanal?: string;
+  contactoMensaje?: string;
+  prueba?: boolean;
+}): Promise<ResultadoEnvio> {
+  const admin = createAdminClient();
+  if (!admin || !envio) return { ok: false, error: ERROR_GENERAL };
+  const mensaje = texto(envio.texto, 2000);
+  if (mensaje.length < 3) return { ok: false, error: "Escribe tu mensaje." };
+  if (!MODOS.some((m) => m.codigo === envio.modo)) return { ok: false, error: "Elige cómo quieres enviarlo." };
+  let identidad: Record<string, unknown> | null = null;
+  if (envio.modo !== "anonimo") {
+    const nombre = texto(envio.nombre, 120), email = texto(envio.email, 200), telefono = texto(envio.telefono, 40);
+    if (nombre.length < 2) return { ok: false, error: "Escribe tu nombre." };
+    if (!email && !telefono) return { ok: false, error: "Déjanos tu correo o tu WhatsApp." };
+    if (email && !EMAIL.test(email)) return { ok: false, error: "Revisa tu correo." };
+    identidad = { nombre, email: email || null, telefono: telefono || null };
+  }
+  let contacto: Record<string, unknown> | null = null;
+  if (envio.modo === "contacto") {
+    if (!MOTIVOS_CONTACTO.some((m) => m.codigo === envio.contactoMotivo)) return { ok: false, error: "Elige el motivo del contacto." };
+    if (!CANALES_CONTACTO.some((c) => c.codigo === envio.contactoCanal)) return { ok: false, error: "Elige cómo prefieres que te contactemos." };
+    contacto = { motivo: envio.contactoMotivo, canal_preferido: envio.contactoCanal, mensaje: texto(envio.contactoMensaje, 1000) };
+  }
+  const { error } = await admin.rpc("cp_registrar_buzon", {
+    p_texto: mensaje,
+    p_modo: envio.modo,
+    p_identidad: identidad,
+    p_contacto: contacto,
+    p_es_prueba: envio.prueba === true,
+  });
+  if (error) {
+    if (error.code === "P0001") return { ok: false, error: error.message };
+    console.error("enviarBuzon", error.code, error.message);
+    return { ok: false, error: ERROR_GENERAL };
+  }
+  return { ok: true };
+}

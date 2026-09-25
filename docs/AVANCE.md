@@ -3,6 +3,56 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Fase 8 · Admin y cumplimiento (25 sep 2026)
+
+### Qué se construyó
+
+- `migrations/cp_0008_admin_cumplimiento.sql` (+ down):
+  - `cp_registrar_buzon()` (solo service role): el buzón pasa por R1 y R4 como el resto.
+  - `cp_anonimizar_vencidas()` + pg_cron `cp_retencion` (diario, 02:00 de Ecuador): borra la
+    identidad y el contacto de las respuestas con más de `retencion_identidad_meses` (24); las
+    respuestas quedan anónimas. Deja auditoría.
+  - `cp_borrar_alumno()` (solo super admin): borrado a pedido por contact_id, correo o
+    teléfono. `cp_solicitudes_borrado` registra fechas, plazo de 15 días y cantidad, **sin
+    guardar el identificador**; las notas ocultan correos.
+  - `cp_estado_cumplimiento()`: verificaciones en vivo para el checklist.
+- `/admin` (super admin): modo de envío de GHL visible y **checklist de la LOPDP** con
+  verificaciones reales. Además:
+  - `/admin/usuarios`: roles, activar o desactivar, Grupos por persona y dar acceso a cuentas
+    de ClassVote. También **crear una cuenta nueva** con la service role (para la cuenta de
+    Mike), con contraseña temporal mostrada una vez. Nadie puede cambiar su propio acceso.
+  - `/admin/grupos`: nombre, tag de GHL, activo e interruptor de correo.
+  - `/admin/configuracion`: las 12 claves de `cp_config`, con validación (pruebas unitarias).
+  - `/admin/datos`: exportación CSV **sin identidades** de respuestas, alertas, acciones y
+    sesiones; borrado a pedido; registro de auditoría legible.
+  - Todo cambio queda en `cp_auditoria`.
+- `/buzon` (público, sin guiones) y `/coach/buzon` (coach, sin nombres).
+
+### Qué se probó
+
+- `pruebas/rls/fase8_cumplimiento.sql` en local y contra la base real: el buzón solo lo
+  escribe la service role y dispara R4 y R1. Mentor y coach no borran alumnos ni cambian la
+  configuración. La retención borra la identidad de 25 meses sin borrar la respuesta y deja
+  auditoría. El borrado a pedido valida las entradas, fija el plazo de 15 días y no guarda el
+  correo. El super admin gestiona la configuración, los Grupos y las asignaciones. También se
+  probaron la reversión y la reaplicación. Son 12 pruebas unitarias en total.
+- Playwright:
+  1. Buzón en iPhone: el anónimo con «cancelar» genera R4 y el de contacto genera R1.
+  2. El coach ve el buzón sin nombres y no entra a `/admin` ni exporta (403). El mentor
+     tampoco entra.
+  3. Super admin:
+     - Checklist de la LOPDP con **7 de 7 en verde**.
+     - La configuración rechaza valores inválidos y guarda los válidos.
+     - Cambió el rol de una cuenta de prueba y lo devolvió; no puede cambiar el suyo.
+     - **Creó la cuenta de prueba `classpulse.prueba.nuevo@example.com`**, que entró con la
+       contraseña temporal. Quedó `es_prueba` y «pendiente» en ClassVote.
+     - Encendió y apagó el correo de Blanco.
+     - Exportó el CSV sin identidades, con auditoría.
+     - Hizo un borrado a pedido.
+     - La auditoría muestra todo.
+- Se corrigió un detalle de accesibilidad: las etiquetas «Rol», «Nombre» y «Correo» estaban
+  repetidas en `/admin/usuarios`.
+
 ## Fase 7 · Kaizen (25 sep 2026)
 
 ### Qué se construyó
@@ -343,6 +393,7 @@ aprobar el Cinturón X! Cuéntanos cómo fue tu nivel; te toma unos 2 minutos».
 | classpulse.prueba.coach@example.com | coach | todos |
 | classpulse.prueba.admin@example.com | super_admin | todos |
 | classpulse.prueba.sinacceso@example.com | ninguno | ninguno |
+| classpulse.prueba.nuevo@example.com | mentor (creada desde /admin en la Fase 8) | ninguno |
 
 Por el trigger de ClassVote aparecen como mentores **pendientes** en ClassVote (sin acceso
 allí). Están marcados `es_prueba` en `cp_acceso`. Las contraseñas no se publican; se pueden
