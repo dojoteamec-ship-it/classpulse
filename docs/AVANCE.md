@@ -64,4 +64,6 @@ restablecer desde /admin de ClassVote.
 
 ### Pendiente
 
-- Ninguno bloqueante.
+- Cambiar la cuenta coach al correo personal de Mike cuando esté definido.
+- Vercel: el proyecto `classpulse` todavía no está creado de forma visible (ver informe de la
+  fase). El token `VERCEL_TOKEN` solo ve `classvote` y no puede crear proyectos.
