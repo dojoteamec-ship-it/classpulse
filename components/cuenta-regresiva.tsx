@@ -16,16 +16,18 @@ const dos = (n: number) => String(n).padStart(2, "0");
 export function CuentaRegresiva({
   objetivo,
   compacta = false,
+  textoFin = "Cerrando…",
 }: {
   /** Segundos Unix del cierre. */
   objetivo: number;
   compacta?: boolean;
+  textoFin?: string;
 }) {
   const segundo = useSyncExternalStore(suscribir, ahora, enServidor);
   const restante = segundo === null ? null : Math.max(0, objetivo - segundo);
 
   if (restante === 0) {
-    return <span className="text-sm text-washi/60">La votación está cerrando…</span>;
+    return <span className="text-sm text-washi/60">{textoFin}</span>;
   }
 
   const partes = restante === null
