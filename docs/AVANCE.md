@@ -3,6 +3,83 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Informe final de la retoma autónoma (25 sep 2026)
+
+**Estado:** las Fases 1 a 8 del plan están construidas, probadas, mergeadas en `main` y en
+producción en https://classpulse-jade.vercel.app. La Fase 9 (piloto de 2 semanas con Amarillo
+y Azul) queda en manos de Santi.
+
+### Entregado
+
+| Fase | PR | Migración | Pruebas RLS |
+|---|---|---|---|
+| 1 · Esqueleto y diseño | dojoteamec-ship-it/classpulse#1 | cp_0001 | fase1_acceso |
+| 2 · Sesiones | dojoteamec-ship-it/classpulse#2 | cp_0002 | fase2_sesiones |
+| 3 · Encuesta de clase | dojoteamec-ship-it/classpulse#3 | cp_0003 | fase3_respuestas |
+| 4 · Correo GHL y NPS de Cinturón | dojoteamec-ship-it/classpulse#4 | cp_0004 | fase4_cinturon_envios |
+| 5 · Tableros | dojoteamec-ship-it/classpulse#5 | cp_0005 | fase5_tableros |
+| 6 · Alertas y bandeja | dojoteamec-ship-it/classpulse#6 | cp_0006 | fase6_alertas |
+| 7 · Kaizen | dojoteamec-ship-it/classpulse#7 | cp_0007 | fase7_kaizen |
+| 8 · Admin y cumplimiento | dojoteamec-ship-it/classpulse#8 | cp_0008 | fase8_cumplimiento |
+
+- Cada migración pasó el verificador (solo objetos `cp_`), tiene su `_down.sql`, se probó dos
+  veces en local (junto con la reversión y la reaplicación) y se aplicó dos veces en producción.
+- Las 8 pruebas RLS pasan en local y **contra la base real**; hay 12 pruebas unitarias
+  (`npm test`). Cada fase tuvo su prueba E2E con Playwright y una revisión del Preview.
+- pg_cron en producción: `cp_cerrar_sesiones` (5 min), `cp_recalcular_sla` (5 min),
+  `cp_revisar_r6` (15 min), `cp_revisar_r7` (diario) y `cp_retencion` (diario). Vercel Cron:
+  resumen diario a las 08:00 de Ecuador.
+- Vercel: variables por entorno, protección **solo en los Preview** y producción pública.
+
+### Reglas respetadas
+
+- **Cero cambios en ClassVote.** Sus 6 tablas y su trabajo `classvote-cerrar-ciclos` siguen
+  intactos; solo se leen `mentores`, `cinturones` y `auth.users`. Hay dos efectos indirectos
+  conocidos, ya previstos por el plan (7.2): el trigger de ClassVote creó filas «pendiente» en
+  `mentores` para la cuenta de prueba `classpulse.prueba.nuevo@example.com` y, antes, para las
+  5 cuentas de prueba de la Fase 1.
+- **GHL en modo prueba en todos los entornos.** Se enviaron **5 correos en total, todos al
+  contacto de prueba** `xZB5m9rMiJ4dz7Ekusib`. No se publicaron enlaces en GHL ni se contactó
+  a ningún alumno real. `enviarCorreo()` rechaza por código a cualquier destinatario fuera de
+  `GHL_CONTACTOS_PRUEBA` mientras el modo sea prueba.
+- **Datos de prueba:** las 26 respuestas de producción son todas `es_prueba`; ninguna cuenta
+  real las ve en los tableros.
+- No se imprimió ninguna credencial.
+
+### Cambios frente al plan (decididos durante la construcción)
+
+1. **Resumen diario con Vercel Cron** en lugar de pg_cron: pg_cron no puede llamar a la app
+   sin `pg_net`, y crear extensiones queda fuera de la regla de solo objetos `cp_`.
+2. **Hash de deduplicación sin enlace a la respuesta** (`cp_respuestas_dedupe`), más estricto
+   que guardarlo en `cp_respuestas`.
+3. **La identidad no se lee directo** ni siquiera como coach: solo con `cp_ver_identidad` y
+   `cp_historial_alumno`, que dejan auditoría.
+4. **R6 solo en Grupos con al menos un mentor real asignado**, para no llenar la bandeja de
+   avisos de Grupos que todavía no usan ClassPulse. Hoy aplica solo a Azul (Santi).
+5. Playwright no puede abrir las URL de Vercel desde este entorno: la CA del proxy no está en
+   Chromium y fijarla fue rechazado por seguridad. Las pruebas de navegador corren contra el
+   build local del mismo commit, conectado a Supabase y GHL reales, y cada Preview se verificó
+   con sesiones reales por HTTP.
+
+### Pendientes para Santi (nada de esto bloquea el piloto en modo prueba)
+
+1. **Workflows de gate en GHL:** agregar la acción Send Email con
+   `https://classpulse-jade.vercel.app/cinturon?c={{contact.id}}&n=N` (ver la Fase 4).
+2. **Campo de nivel en GHL** (`ghl_campo_nivel` en /admin): sin él, el correo real no sale
+   para los Cinturones y el enlace personal acepta cualquier Cinturón.
+3. **Contacto de Mike en GHL** (`ghl_contacto_resumen` en /admin) para el resumen diario.
+4. **Cuenta de Mike:** hoy es `dojo.team.ec@gmail.com`. Cuando tenga correo personal, crear la
+   cuenta en /admin/usuarios y desactivar la actual.
+5. **Rangos de cada nivel** (`rangos_por_nivel`) y **metas** (sobre todo el NPS objetivo) en
+   /admin/configuracion.
+6. Encender el **correo por Grupo** en /admin/grupos para el piloto (Amarillo y Azul) y
+   asignar a los mentores reales sus Grupos en /admin/usuarios.
+7. Cambiar `GHL_MODO_ENVIO` a `real` en Vercel **solo cuando decidas empezar con alumnos**.
+8. Plan de Vercel: Hobby no es para uso comercial (plan 9.1).
+9. Probar la encuesta en un iPhone y un Android físicos.
+10. Opcional: borrar las cuentas y los datos de prueba antes del piloto. Todo lleva
+    `es_prueba` (o el dominio `@example.com`) y no aparece en los tableros reales.
+
 ## Fase 8 · Admin y cumplimiento (25 sep 2026)
 
 ### Qué se construyó
@@ -185,9 +262,9 @@ arriba.
 - `POST /contacts/search` (Version 2021-07-28) con filtro `tags eq <tag>`: funciona (el
   contacto de prueba aparece con su tag). La subcuenta tiene 1.802 contactos.
 - `POST /conversations/messages` tipo Email (Version 2021-04-15), sin `emailFrom` (usa el
-  remitente por defecto de la subcuenta): «Email queued successfully». Se enviaron **3 correos
-  en total, todos al contacto de prueba** `xZB5m9rMiJ4dz7Ekusib` (1 de verificación y 2 de las
-  pruebas E2E).
+  remitente por defecto de la subcuenta): «Email queued successfully». En esta fase se
+  enviaron **4 correos, todos al contacto de prueba** `xZB5m9rMiJ4dz7Ekusib` (1 de verificación
+  y 3 de las corridas de la prueba E2E).
 
 ### Qué se construyó
 
