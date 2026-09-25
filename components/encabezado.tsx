@@ -10,7 +10,7 @@ function enlacesDe(rol: Acceso["rol"]): [string, string][] {
     ["/panel", "Panel"],
     ["/panel/tablero", "Mi tablero"],
   ];
-  if (rol === "coach" || rol === "super_admin") enlaces.push(["/coach", "Coach"]);
+  if (rol === "coach" || rol === "super_admin") enlaces.push(["/coach", "Bandeja"], ["/coach/tablero", "Tablero global"]);
   if (rol === "super_admin") enlaces.push(["/coach/programa", "Programa"]);
   return enlaces;
 }
