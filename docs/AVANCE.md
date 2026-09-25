@@ -3,6 +3,40 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Fase 7 · Kaizen (25 sep 2026)
+
+### Qué se construyó
+
+- `migrations/cp_0007_kaizen.sql` (+ down):
+  - `cp_acciones`: problema con enlace a los datos, hasta 5 porqués, acción, responsable, fecha
+    compromiso, estado PDCA (Planificar → Hacer → Verificar → Estandarizar, o Descartar),
+    alcance (Grupo, mentor y tipo de sesión), métrica, inicio y ventana, «Publicar en Dijiste,
+    hicimos» y enlace opcional a la alerta que la originó (R7).
+  - `cp_medir()`: CSAT medio, % Top 2, % Bottom 2, % distintiva en rojo o NPS en un alcance y
+    rango; **solo agregados** con su n. `cp_medir_accion()` devuelve antes (N días previos al
+    inicio) y después (desde el inicio). Al pasar a Verificar o Estandarizar, un trigger
+    **congela** las dos mediciones.
+  - RLS: el coach y el super admin crean y editan; solo el super admin borra; un mentor lee
+    únicamente sus acciones.
+- `lib/kaizen.ts` (pruebas unitarias): estados, métricas, «¿mejoró?» según la dirección de cada
+  métrica, `sinGuiones()` y el texto de «Dijiste, hicimos».
+- `/kaizen` (todos los roles, cada uno con su alcance), `/kaizen/nueva` y `/kaizen/[id]`
+  (formulario PDCA), `/kaizen/dijimos` (texto mensual por Grupo, sin guiones, con botón para
+  copiar). En las alertas R7 hay un botón «Crear acción PDCA». El tablero del mentor muestra
+  sus acciones.
+
+### Qué se probó
+
+- `pruebas/rls/fase7_kaizen.sql` en local y contra la base real (métricas antes y después
+  exactas, congelado al verificar, alcance por rol); reversión y reaplicación en local. 10
+  pruebas unitarias en total.
+- Playwright, **una acción completa**: 2 respuestas de prueba con nota 2 hace 2 días (enlace
+  general, Pixel 7). El coach crea la acción desde ayer, con los 5 porqués parciales y publicar
+  marcado. Antes = 2,00 (n = 2) y después = 4,00 (n = 7), **iguales a SQL**. La pasa a Verificar
+  y quedan congeladas, con «✓ Mejoró». «Dijiste, hicimos» de Amarillo, septiembre de 2026, la
+  incluye y sale **sin guiones**. El mentor 1 la ve sin poder editarla ni generar el texto, y el
+  mentor 2 recibe 404.
+
 ## Fase 6 · Alertas y bandeja de Mike (25 sep 2026)
 
 ### Qué se construyó
