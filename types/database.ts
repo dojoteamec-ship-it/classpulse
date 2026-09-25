@@ -138,3 +138,27 @@ export type AlertaBandeja = {
   notas: { autor: string | null; texto: string; en: string }[];
   hora_local: string | null;
 };
+
+export type Accion = {
+  id: string;
+  grupo_id: string | null;
+  mentor_id: string | null;
+  tipo_sesion: TipoSesion | null;
+  problema: string;
+  enlace_datos: string | null;
+  porques: string[];
+  accion: string;
+  responsable: string | null;
+  fecha_compromiso: string | null;
+  estado: "planificar" | "hacer" | "verificar" | "estandarizar" | "descartar";
+  metrica: "csat_medio" | "top2" | "bottom2" | "distintiva_roja" | "nps";
+  fecha_inicio: string;
+  ventana_dias: number;
+  metrica_antes: { valor: number | null; n: number; desde: string; hasta: string } | null;
+  metrica_despues: { valor: number | null; n: number; desde: string; hasta: string } | null;
+  publicar: boolean;
+  alerta_id: string | null;
+  es_prueba: boolean;
+  creado_en: string;
+  actualizado_en: string;
+};

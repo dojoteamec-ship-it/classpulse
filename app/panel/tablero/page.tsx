@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Contenedor } from "@/components/contenedor";
 import { Bandas, ChipsSeeq, Cifra, Distribucion, Tendencia, num, pct } from "@/components/graficos";
 import { Rotulo } from "@/components/rotulo";
+import { TarjetaAccion } from "@/components/tarjeta-accion";
+import { accionesConMedicion } from "@/lib/acciones-kaizen";
 import { requerirRol } from "@/lib/auth";
 import { DIMENSION } from "@/lib/encuesta";
 import { formatearClase } from "@/lib/fecha";
@@ -15,9 +17,10 @@ import type { TipoSesion } from "@/types/database";
 export default async function TableroMentorPage() {
   const { supabase, mentor, acceso } = await requerirRol();
   const { hoy, desde } = ventana90();
-  const [todas, ref] = await Promise.all([
+  const [todas, ref, acciones] = await Promise.all([
     respuestasClase(supabase, { desde, prueba: acceso.es_prueba }),
     referenciaAcademia(supabase, desde, acceso.es_prueba),
+    accionesConMedicion(supabase, acceso.es_prueba, { mentor: mentor.id }),
   ]);
   const mias = todas.filter((r) => mentoresDe(r).includes(mentor.id));
   const tipos = (Object.keys(TIPO_SESION) as TipoSesion[]).filter((t) => mias.some((r) => r.tipo_sesion === t));
@@ -68,6 +71,19 @@ export default async function TableroMentorPage() {
         <section className="tarjeta flex flex-col gap-4 p-5 sm:p-6">
           <Rotulo kanji="評">Lo más elegido, por dimensión</Rotulo>
           <ChipsSeeq datos={chipsSeeq(mias)} nombres={DIMENSION} textoChip={TEXTO_CHIP} />
+        </section>
+      )}
+
+      {acciones.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <Rotulo kanji="改">Tus acciones Kaizen</Rotulo>
+          <ul className="grid gap-3 lg:grid-cols-2">
+            {acciones.map(({ accion, medicion }) => (
+              <li key={accion.id}>
+                <TarjetaAccion a={accion} medicion={medicion} enlace />
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

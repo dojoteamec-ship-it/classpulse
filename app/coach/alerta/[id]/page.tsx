@@ -34,6 +34,15 @@ export default async function AlertaPage({ params }: PageProps<"/coach/alerta/[i
         <TarjetaAlerta a={a} enlace={false} />
       </section>
 
+      {a.regla === "R7" && (
+        <Link
+          href={`/kaizen/nueva?alerta=${a.id}&problema=${encodeURIComponent(a.resumen ?? "")}&enlace=${encodeURIComponent("/coach/tablero")}`}
+          className="boton-primario self-start"
+        >
+          Crear acción PDCA
+        </Link>
+      )}
+
       {a.respuesta_id && (
         <section className="tarjeta flex flex-col gap-3 p-5 sm:p-6">
           <Rotulo kanji="人">Alumno</Rotulo>
