@@ -25,7 +25,11 @@ export default async function SesionPage({ params, searchParams }: PageProps<"/p
     .eq("id", id)
     .maybeSingle<Detalle>();
   if (!s) notFound();
-  const { data } = await supabase.rpc("cp_directorio");
+  const [{ data }, { data: conteo }] = await Promise.all([
+    supabase.rpc("cp_directorio"),
+    supabase.rpc("cp_conteo_respuestas", { p_sesion_ids: [id] }),
+  ]);
+  const respuestas = Number((conteo as { respuestas: number }[] | null)?.[0]?.respuestas ?? 0);
   const personas = (data ?? []) as PersonaDirectorio[];
   const nombre = (mid: string) => personas.find((p) => p.mentor_id === mid)?.nombre ?? "Mentor";
   const mentores = [...s.cp_sesion_mentores].sort((a, b) => Number(b.principal) - Number(a.principal));
@@ -59,6 +63,10 @@ export default async function SesionPage({ params, searchParams }: PageProps<"/p
       )}
 
       <section className="tarjeta flex animate-aparecer flex-col gap-5 p-6 [animation-delay:100ms] sm:p-8">
+        <div className="flex items-baseline gap-3">
+          <span className="titular text-5xl tabular-nums">{respuestas}</span>
+          <span className="text-washi/55">{respuestas === 1 ? "respuesta" : "respuestas"}</span>
+        </div>
         <Rotulo kanji="鎖">Enlace general del Grupo</Rotulo>
         <CopiarEnlace ruta={ruta} />
         {s.es_prueba && (
