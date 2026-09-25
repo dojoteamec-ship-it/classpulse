@@ -9,6 +9,9 @@ import { requerirRol } from "@/lib/auth";
 import { fechaHoraCorta, formatearClase } from "@/lib/fecha";
 import { TIPO_SESION, segundosUnix } from "@/lib/sesiones";
 import type { Grupo, PersonaDirectorio, Sesion, SesionMentor } from "@/types/database";
+import { Bandas, Cifra, Distribucion, num, pct } from "@/components/graficos";
+import { resumenClase } from "@/lib/metricas";
+import type { RespuestaTablero } from "@/lib/tablero";
 import { cerrarSesion } from "../../acciones";
 
 type Detalle = Sesion & { cp_grupos: Grupo; cp_sesion_mentores: SesionMentor[] };
@@ -25,11 +28,20 @@ export default async function SesionPage({ params, searchParams }: PageProps<"/p
     .eq("id", id)
     .maybeSingle<Detalle>();
   if (!s) notFound();
-  const [{ data }, { data: conteo }] = await Promise.all([
+  // RLS: respuestas sin identidad de esta sesión (el mentor solo ve las suyas).
+  const [{ data }, { data: filas }] = await Promise.all([
     supabase.rpc("cp_directorio"),
-    supabase.rpc("cp_conteo_respuestas", { p_sesion_ids: [id] }),
+    supabase
+      .from("cp_respuestas")
+      .select("csat, distintiva_banda, asistencia, motivo_inasistencia, chips, tipo_sesion, fecha_clase, canal_entrada, texto_mantener, texto_cambiar, creado_en")
+      .eq("sesion_id", id)
+      .order("creado_en", { ascending: false })
+      .returns<RespuestaTablero[]>(),
   ]);
-  const respuestas = Number((conteo as { respuestas: number }[] | null)?.[0]?.respuestas ?? 0);
+  const lista = filas ?? [];
+  const respuestas = lista.length;
+  const resumen = resumenClase(lista);
+  const comentarios = lista.filter((r) => r.texto_mantener || r.texto_cambiar);
   const personas = (data ?? []) as PersonaDirectorio[];
   const nombre = (mid: string) => personas.find((p) => p.mentor_id === mid)?.nombre ?? "Mentor";
   const mentores = [...s.cp_sesion_mentores].sort((a, b) => Number(b.principal) - Number(a.principal));
@@ -96,6 +108,45 @@ export default async function SesionPage({ params, searchParams }: PageProps<"/p
           </p>
         )}
       </section>
+      {respuestas > 0 && (
+        <section className="tarjeta flex animate-aparecer flex-col gap-5 p-6 [animation-delay:140ms] sm:p-8">
+          <Rotulo kanji="評">Resultados</Rotulo>
+          <p className="text-xs text-washi/45">
+            Una sola clase no alcanza para juzgar: lee tu tendencia de 90 días en Mi tablero.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Cifra etiqueta="CSAT medio" valor={num(resumen.csatMedio)} n={resumen.n} />
+            <Cifra etiqueta="Top 2" valor={pct(resumen.top2)} n={resumen.n} />
+            <Cifra etiqueta="Distintiva en rojo" valor={pct(resumen.bandas.n ? resumen.bandas.roja / resumen.bandas.n : null)} n={resumen.bandas.n} />
+            <Cifra etiqueta="No pudo asistir" valor={pct(resumen.inasistencia)} n={resumen.total} />
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <Distribucion distribucion={resumen.distribucion} n={resumen.n} />
+            <Bandas bandas={resumen.bandas} />
+          </div>
+          {comentarios.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h2 className="text-sm font-semibold text-washi/80">Comentarios (sin nombre)</h2>
+              <ul className="flex flex-col gap-2">
+                {comentarios.map((c, i) => (
+                  <li key={i} className="flex flex-col gap-1 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm">
+                    {c.texto_mantener && (
+                      <p>
+                        <span className="text-matcha">Mantener:</span> {c.texto_mantener}
+                      </p>
+                    )}
+                    {c.texto_cambiar && (
+                      <p>
+                        <span className="text-cian-300">Cambiar:</span> {c.texto_cambiar}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
     </Contenedor>
   );
 }

@@ -3,6 +3,43 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Fase 5 · Tableros (25 sep 2026)
+
+### Qué se construyó
+
+- `migrations/cp_0005_tableros.sql` (+ down): `cp_referencia_academia()` (CSAT semanal de la
+  academia por tipo de sesión, **solo agregados**, para la línea de referencia del mentor) y
+  `cp_aprobaciones` (tasa de aprobación por Rango; la escribe el super admin y la lee el coach).
+- `lib/metricas.ts`: KPIs de 4.1 como funciones puras (CSAT medio, Top 2, Bottom 2,
+  distribución, bandas sin neutras, inasistencia y motivos, NPS, NES, CES, chips por dimensión
+  SEEQ, tendencia semanal, tasa de respuesta). Tiene **pruebas unitarias** (`npm test`).
+- `components/graficos.tsx`: SVG propio con los tokens de ClassVote. Cada cifra lleva su n y
+  se atenúa con «muestra pequeña» si n < `muestra_minima` (15); la distribución va junto al
+  promedio; tooltip por marca; la tendencia tiene vista de tabla. La paleta de bandas (roja
+  `#b8342b`, amarilla `#b38c26`, verde `#1f9e70`) pasó el validador de color para modo oscuro
+  (con etiquetas directas y separación, porque la separación para daltonismo queda en 7,9).
+- `/panel/tablero` (todos los roles, solo las clases que dio la persona): por tipo de sesión,
+  KPIs, distribución, bandas, tendencia de 90 días contra la academia, chips SEEQ y tarjetas
+  por sesión. `/panel/sesion/[id]` muestra los resultados y los comentarios sin nombre.
+- `/coach` (coach y super admin): filtros por Grupo, mentor, tipo y fechas; KPIs con metas de
+  `cp_config.metas`; tabla por mentor **dentro de cada tipo de sesión**; motivos de inasistencia
+  por nivel; chips; comentarios recientes sin nombre.
+- `/coach/programa` (super admin): NPS, NES, CES, dificultad, aplicación y clientes activos por
+  Cinturón, junto a la aprobación por Rango (se carga pegando un CSV).
+- Datos de prueba fuera de los tableros: cada tablero muestra solo filas con
+  `es_prueba = es_prueba de la cuenta` (las cuentas reales nunca ven pruebas).
+- Navegación por rol en el encabezado.
+
+### Qué se probó
+
+- `pruebas/rls/fase5_tableros.sql` (local y remoto) y 6 pruebas unitarias de métricas.
+- Playwright contra los datos de prueba reales en Supabase: el tablero del mentor muestra solo
+  su Kata (no el Mondo del mentor 2), con CSAT y n **iguales a los calculados en SQL**, y marca
+  «muestra pequeña»; el CSAT global del coach coincide con SQL; una tabla por tipo; el filtro
+  funciona; mentor y coach no entran a las vistas que no les tocan; el super admin ve el NPS
+  de Cinturón con el n correcto y carga el CSV (rechaza aprobados > presentados). **Ninguna
+  página de tablero contiene nombres ni correos de los respondentes de prueba.**
+
 ## Fase 4 · Correo por GHL y NPS de Cinturón (25 sep 2026)
 
 ### Verificación de la API de GHL (en vivo)
