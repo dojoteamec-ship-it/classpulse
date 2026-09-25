@@ -3,6 +3,66 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Fase 2 · Sesiones (25 sep 2026)
+
+### Qué se construyó
+
+- `migrations/cp_0002_sesiones.sql` (+ `cp_0002_down.sql`):
+  - `cp_sesiones`, `cp_sesion_mentores` (principal y co-mentores), `cp_sesion_sales` (sal de
+    anonimato: nadie la lee salvo la service role; se borra al cerrar) y la base de `cp_alertas`
+    (la Fase 6 la completa).
+  - `cp_abrir_sesion()`: valida el Grupo, el rol (`cp_puede_abrir`), tipo de sesión según el
+    Grupo (Cinturón: Kata, Mondo, Randori, Shinsa; Comunidad: Práctica con clientes), fecha de hoy
+    o de los 3 días anteriores, co-mentores con acceso (máx. 3) y que no haya otra sesión abierta
+    igual. El coach puede abrirla en nombre de un mentor. Hereda `es_prueba` de las cuentas.
+  - `cp_cerrar_sesion()` (quien la dio o el coach) y `cp_cerrar_vencidas()` (cron).
+  - `cp_revisar_r6()`: franja del cronograma que pasó hace 2 h o más sin sesión → aviso
+    operativo R6 (sin duplicados). Solo en Grupos con al menos un mentor **real** asignado; las
+    sesiones de prueba no cuentan. Se resuelve solo cuando alguien abre la sesión de esa clase.
+    Semana A/B con `cp_semana_ab()` (referencia 2026-09-28 = A).
+  - `cp_sesiones_abiertas(slug)`: única lectura pública (anon) para el enlace general; las
+    sesiones de prueba solo aparecen con `?prueba=1`.
+  - pg_cron: `cp_cerrar_sesiones` cada 5 min y `cp_revisar_r6` cada 15 min.
+- Panel: «Abrir feedback» (Grupo, tipo sugerido por el cronograma del día, fecha, rango,
+  co-mentor y, para el coach, «¿Quién dio la clase?»), sesiones abiertas con cuenta regresiva,
+  recientes, y para el coach «Clases sin feedback abierto» (R6).
+- `/panel/sesion/[id]`: enlace general para copiar, cuenta regresiva, «Cerrar ahora».
+- `/g/[grupo]`: enlace general público con las sesiones abiertas del Grupo (la encuesta entra
+  en la Fase 3).
+
+### Qué se probó
+
+- Verificador de migraciones, `cp_0002` dos veces en local y en producción, reversión y
+  reaplicación en local.
+- `pruebas/rls/fase2_sesiones.sql` en local y contra la base real (anon, mentor, co-mentor,
+  mentor ajeno, coach; sal inaccesible; cierre a las 24 h; R6 con y sin mentor real,
+  deduplicada y resuelta al abrir). Se comprobó que la prueba falla si se sabotea una aserción.
+- Playwright (build local + Supabase real): mentor en móvil abre una Kata con co-mentor, ve el
+  enlace y la cuenta regresiva; se rechaza la duplicada; `/g/amarillo` no muestra la sesión de
+  prueba y `/g/amarillo?prueba=1` sí, sin guiones; el co-mentor y el coach la ven; el coach la
+  cierra.
+- pg_cron real: una sesión de prueba con `cierra_en` adelantado se cerró sola y su sal se borró.
+
+## Retoma autónoma: Vercel y cierre de la Fase 1 (25 sep 2026)
+
+- Las 6 credenciales responden (Supabase, GitHub, GHL con el contacto de prueba, Vercel).
+  `VERCEL_TOKEN` ve el proyecto `classpulse` (`prj_vkoOG6PdVkRsTNFbzOxWR3aTwsD3`).
+- Variables en Vercel (API, upsert): `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  (los 3 entornos); `SUPABASE_SERVICE_ROLE_KEY`, `GHL_PRIVATE_TOKEN` y `CRON_SECRET` como
+  *sensitive* (Production y Preview); `GHL_LOCATION_ID`, `GHL_MODO_ENVIO=prueba` y
+  `GHL_CONTACTOS_PRUEBA=xZB5m9rMiJ4dz7Ekusib` (los 3 entornos); `NEXT_PUBLIC_APP_URL`
+  (Production).
+- Protección de Vercel solo en los Preview (`ssoProtection: preview`): producción es pública.
+  Se generó un token de bypass para automatización (pruebas de Preview).
+- El Preview del PR #1 se revisó con sesión real (curl con la cookie de Supabase): el super admin
+  ve los 9 Grupos y el mentor solo Amarillo. Playwright no puede abrir URLs de Vercel desde este
+  entorno (la CA del proxy no está en Chromium), así que las pruebas de navegador corren contra
+  el build local del mismo commit conectado al Supabase real, como en la Fase 1.
+- PR #1 mergeado. Producción (`classpulse-jade.vercel.app`) quedó en `main`, pública y con login
+  real funcionando.
+- Las contraseñas de las 5 cuentas de prueba se regeneraron para las pruebas automáticas (no se
+  publican).
+
 ## Fase 1 · Esqueleto y diseño (25 sep 2026)
 
 ### Verificación inicial
@@ -65,5 +125,4 @@ restablecer desde /admin de ClassVote.
 ### Pendiente
 
 - Cambiar la cuenta coach al correo personal de Mike cuando esté definido.
-- Vercel: el proyecto `classpulse` todavía no está creado de forma visible (ver informe de la
-  fase). El token `VERCEL_TOKEN` solo ve `classvote` y no puede crear proyectos.
+- ~~Vercel: proyecto classpulse~~ Resuelto en la retoma autónoma (ver arriba).
