@@ -3,6 +3,48 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Fase 3 · Encuesta de clase (25 sep 2026)
+
+### Qué se construyó
+
+- `migrations/cp_0003_respuestas.sql` (+ `cp_0003_down.sql`):
+  - `cp_respuestas` (sin identidad; columnas tipadas de 3.1 y 3.2, `version_encuesta`,
+    `canal_entrada`, `segundos_para_responder`, `horas_desde_apertura`, `es_prueba`).
+  - `cp_respondentes` (identidad) y `cp_contactos` (pedido de contacto): **sin permisos para
+    nadie** salvo la service role. El coach las leerá con funciones que dejan auditoría (Fases 6
+    y 8).
+  - `cp_respuestas_dedupe`: hash(clave + sal) **sin enlace a la respuesta** (más estricto que el
+    plan, que lo ponía en `cp_respuestas`). Al cerrar la sesión se borra la sal.
+  - `cp_registrar_respuesta()`: solo la service role. Valida la sesión abierta, deduplica y
+    escribe respuesta, identidad y contacto en una sola transacción.
+  - `cp_conteo_respuestas()` para el panel.
+- `lib/encuesta.ts`: el instrumento completo (preguntas, bandas, chips SEEQ, modos de identidad,
+  avisos obligatorios). Es la fuente única para la pantalla y el servidor.
+- `lib/ghl.ts`: `GET /contacts/{id}` (API v2, Version 2021-07-28); se verifica el `locationId`.
+- Server Action `enviarRespuestaClase`: valida todo contra el instrumento. En el enlace personal
+  vuelve a consultar el contacto en GHL y comprueba que la sesión le corresponda; la identidad
+  sale de GHL, no del navegador.
+- Pantallas del alumno (móvil primero, sin guiones): `/g/<grupo>` (enlace general, elige
+  sesión si hay varias), `/f?c=<contact_id>[&s=<sesión>]` (enlace personal) y `/privacidad`.
+  Los contactos de `GHL_CONTACTOS_PRUEBA` solo ven sesiones de prueba.
+- El panel de la sesión muestra el número de respuestas.
+
+### Qué se probó
+
+- `pruebas/rls/fase3_respuestas.sql` en local y contra la base real: anon y mentor no pueden
+  registrar; deduplicación por contacto; anónima sin identidad; identidad vacía rechazada sin
+  dejar rastro; sesión cerrada no recibe; mentor lee sus respuestas pero no identidades,
+  contactos ni hashes; el coach tampoco lee identidades directo.
+- Playwright (build local + Supabase y GHL reales): **10 respuestas de prueba** en iPhone 13 y
+  Pixel 7 emulados (anónimas, con nombre, con contacto, no asistió, enlace personal con el
+  contacto de prueba en 2 sesiones y enlace general). Se verificó en la base: 10 respuestas
+  `es_prueba`, las anónimas sin identidad ni contacto, 2 pedidos de contacto, `ghl_contact_id`
+  en el enlace personal, banda neutra de «No traje dudas», sin csat cuando no asistió y 10
+  hashes. Se rechazó el mismo navegador y el mismo contacto (aunque cambie a anónimo); contacto
+  inexistente rechazado; sin guiones ni scroll horizontal.
+- Pendiente de la vida real: probarlo en un iPhone y un Android físicos (la emulación cubre
+  tamaño, táctil y agente de usuario).
+
 ## Fase 2 · Sesiones (25 sep 2026)
 
 ### Qué se construyó
