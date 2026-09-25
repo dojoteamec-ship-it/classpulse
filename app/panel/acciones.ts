@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { enviarCorreosDeSesion } from "@/lib/correo-sesion";
 import { redirect } from "next/navigation";
 import { requerirRol } from "@/lib/auth";
 import type { EstadoFormulario } from "@/app/sesion/acciones";
@@ -31,8 +33,11 @@ export async function abrirSesion(_: EstadoFormulario, form: FormData): Promise<
       error?.code === "P0001" ? error.message : "No se pudo abrir la sesión. Intenta de nuevo.";
     return { error: mensaje, valores };
   }
+  // El correo del enlace personal sale después de responder al mentor.
+  const sesionId = String(data);
+  after(() => enviarCorreosDeSesion(sesionId).catch((e) => console.error("enviarCorreosDeSesion", e)));
   revalidatePath("/panel");
-  redirect(`/panel/sesion/${data}?nueva=1`);
+  redirect(`/panel/sesion/${sesionId}?nueva=1`);
 }
 
 export async function cerrarSesion(form: FormData) {

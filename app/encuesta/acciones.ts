@@ -15,6 +15,14 @@ import {
   chipsPara,
   type EnvioClase,
 } from "@/lib/encuesta";
+import {
+  APLICACION,
+  CLIENTES_ACTIVOS,
+  NES,
+  VERSION_ENCUESTA_CINTURON,
+  preguntaClientes,
+  type EnvioCinturon,
+} from "@/lib/encuesta-cinturon";
 import type { TipoSesion } from "@/types/database";
 
 export type ResultadoEnvio = { ok: true } | { ok: false; error: string };
@@ -130,6 +138,63 @@ export async function enviarRespuestaClase(envio: EnvioClase): Promise<Resultado
   if (error) {
     if (error.code === "P0001") return { ok: false, error: error.message };
     console.error("enviarRespuestaClase", error.code, error.message);
+    return { ok: false, error: ERROR_GENERAL };
+  }
+  return { ok: true };
+}
+
+// Encuesta de Cinturón (enlace personal desde el Workflow de gate de GHL).
+export async function enviarRespuestaCinturon(envio: EnvioCinturon): Promise<ResultadoEnvio> {
+  const admin = createAdminClient();
+  if (!admin || !envio) return { ok: false, error: ERROR_GENERAL };
+  const nivel = Number(envio.nivel);
+  if (!Number.isInteger(nivel) || nivel < 0 || nivel > 6) return { ok: false, error: ERROR_GENERAL };
+  const contacto = await obtenerContacto(String(envio.contactId)).catch(() => null);
+  if (!contacto) return { ok: false, error: "No pudimos validar tu enlace personal." };
+
+  const nps = Number(envio.nps);
+  if (!Number.isInteger(nps) || nps < 0 || nps > 10) return { ok: false, error: "Responde la primera pregunta." };
+  if (!NES.some((o) => o.codigo === envio.nes)) return { ok: false, error: `Cuéntanos qué dirías del Nivel ${nivel}.` };
+  const en = <T,>(v: T | undefined, ok: boolean) => (ok ? v : undefined);
+  const aplicacion = en(envio.aplicacion, APLICACION.some((o) => o.codigo === envio.aplicacion));
+  const dificultad = en(Number(envio.dificultad), Number.isInteger(Number(envio.dificultad)) && Number(envio.dificultad) >= 1 && Number(envio.dificultad) <= 5);
+  const ces = en(Number(envio.ces), Number.isInteger(Number(envio.ces)) && Number(envio.ces) >= 1 && Number(envio.ces) <= 7);
+  const clientes = en(envio.clientesActivos, preguntaClientes(nivel) && CLIENTES_ACTIVOS.some((o) => o.codigo === envio.clientesActivos));
+  if (!MODOS.some((m) => m.codigo === envio.modo)) return { ok: false, error: "Elige cómo quieres enviar tu respuesta." };
+
+  let contactoPedido: Record<string, unknown> | null = null;
+  if (envio.modo === "contacto") {
+    if (!MOTIVOS_CONTACTO.some((m) => m.codigo === envio.contactoMotivo)) return { ok: false, error: "Elige el motivo del contacto." };
+    if (!CANALES_CONTACTO.some((c) => c.codigo === envio.contactoCanal)) return { ok: false, error: "Elige cómo prefieres que te contactemos." };
+    contactoPedido = { motivo: envio.contactoMotivo, canal_preferido: envio.contactoCanal, mensaje: texto(envio.contactoMensaje, 1000) };
+  }
+
+  const { error } = await admin.rpc("cp_registrar_cinturon", {
+    p_contact_id: contacto.id,
+    p_nivel: nivel,
+    p_respuesta: {
+      version_encuesta: VERSION_ENCUESTA_CINTURON,
+      modo_identidad: envio.modo,
+      nps,
+      nes: envio.nes,
+      aplicacion: aplicacion ?? null,
+      dificultad: dificultad ?? null,
+      ces: ces ?? null,
+      clientes_activos: clientes ?? null,
+      rango_top: texto(envio.rangoTop, 80) || null,
+      texto_cambio_nivel: texto(envio.textoCambio, 1000) || null,
+      segundos_para_responder: Math.max(0, Math.min(86400, Math.round(Number(envio.segundos) || 0))),
+    },
+    p_identidad:
+      envio.modo === "anonimo"
+        ? null
+        : { nombre: contacto.nombre, email: contacto.email, telefono: contacto.telefono, ghl_contact_id: contacto.id, nivel },
+    p_contacto: contactoPedido,
+    p_es_prueba: esContactoDePrueba(contacto.id),
+  });
+  if (error) {
+    if (error.code === "P0001") return { ok: false, error: error.message };
+    console.error("enviarRespuestaCinturon", error.code, error.message);
     return { ok: false, error: ERROR_GENERAL };
   }
   return { ok: true };

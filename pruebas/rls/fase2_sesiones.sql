@@ -7,6 +7,8 @@ declare
   s1 uuid; s2 uuid; n int; hoy date := (now() at time zone 'America/Guayaquil')::date;
   ayer date; ok boolean;
 begin
+  -- Independiente de las pruebas E2E: cierra las sesiones de prueba abiertas (se deshace al final).
+  update cp_sesiones set estado = 'cerrada', cerrada_en = now() where es_prueba and estado = 'abierta';
   select id into m1 from mentores where email = 'classpulse.prueba.mentor1@example.com';
   select id into m2 from mentores where email = 'classpulse.prueba.mentor2@example.com';
   select id into coach from mentores where email = 'classpulse.prueba.coach@example.com';

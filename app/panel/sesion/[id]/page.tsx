@@ -66,6 +66,9 @@ export default async function SesionPage({ params, searchParams }: PageProps<"/p
         <div className="flex items-baseline gap-3">
           <span className="titular text-5xl tabular-nums">{respuestas}</span>
           <span className="text-washi/55">{respuestas === 1 ? "respuesta" : "respuestas"}</span>
+          <span className="ml-auto text-sm text-washi/45">
+            {s.correos_enviados > 0 ? `${s.correos_enviados} correos enviados` : s.cp_grupos.enviar_correo || s.es_prueba ? "Correos en camino…" : "Correo apagado en este Grupo"}
+          </span>
         </div>
         <Rotulo kanji="鎖">Enlace general del Grupo</Rotulo>
         <CopiarEnlace ruta={ruta} />
