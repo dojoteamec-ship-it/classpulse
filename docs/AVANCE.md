@@ -3,6 +3,60 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Fase 6 · Alertas y bandeja de Mike (25 sep 2026)
+
+### Qué se construyó
+
+- `migrations/cp_0006_alertas.sql` (+ down):
+  - `cp_sumar_horas_habiles()`: SLA en horas hábiles según `cp_config.horario_habil`
+    (lunes a viernes, de 09:00 a 18:00, hora de Ecuador).
+  - `cp_evaluar_alertas()` con R1 (pidió contacto, alta, 24 h), R2 (nota 1 o 2 con identidad,
+    media, 24 h), R3 (NPS de 0 a 6 con identidad, media, 48 h), R4 (palabras clave, sin tildes
+    ni mayúsculas; si es anónima: aviso sin contacto y sin SLA) y R5 (2 respuestas seguidas en
+    rojo o con nota ≤ 2 del mismo alumno identificado). La disparan triggers `AFTER INSERT` en
+    `cp_respuestas`, `cp_respondentes` y `cp_contactos`; sin duplicados por respuesta y regla.
+  - `cp_revisar_r7()` (pg_cron diario, 06:00 de Ecuador): mentor con CSAT de 30 días < 3,8 y
+    n ≥ 15 por tipo de sesión → alerta Kaizen **solo para el super admin**.
+  - `cp_recalcular_sla()` (pg_cron cada 5 min): recalcula vencimientos si cambia el horario o
+    el SLA.
+  - `cp_bandeja()` (sin identidades), `cp_ver_identidad()` y `cp_historial_alumno()` (**dejan
+    auditoría**), `cp_alumnos_en_riesgo()`, `cp_actualizar_alerta()` (estados Nueva → En
+    contacto → Resuelta o Descartada, notas y `primer_contacto_en`) y `cp_metricas_sla()`
+    (cumplimiento, mediana y p90 del tiempo hasta el contacto).
+- `/coach` es ahora la **bandeja de casos** (primera pantalla del coach): métricas de SLA,
+  filtro por estado, casos ordenados por gravedad y vencimiento, y alumnos con varias alertas.
+  El tablero global pasó a `/coach/tablero`.
+- `/coach/alerta/[id]`: detalle del caso. La identidad y el historial **no viajan con la
+  página**: se piden con un botón y quedan en la auditoría. Notas y cambios de estado.
+- Resumen diario: `/api/cron/resumen`, protegido con `CRON_SECRET` y disparado por **Vercel
+  Cron** (`vercel.json`, 13:00 UTC = 08:00 de Ecuador). Solo cifras, sin identidades. En modo
+  prueba va a `GHL_CONTACTOS_PRUEBA`; en modo real, a `cp_config.ghl_contacto_resumen` (hoy
+  null: hay que cargar el contacto de Mike en GHL).
+  - **Cambio frente al plan:** el plan decía que lo disparara pg_cron, pero pg_cron no hace
+    HTTP sin la extensión `pg_net`, y crear extensiones está fuera de lo permitido (solo objetos
+    `cp_`). Por eso lo dispara Vercel Cron.
+
+### Qué se probó
+
+- `pruebas/rls/fase6_alertas.sql` en local y contra la base real: horas hábiles (fin de
+  semana y fuera de horario), cada regla con sus casos negativos, R7 sin duplicados, anon y
+  mentor sin acceso, el coach sin R7 y el super admin con R7, identidad y seguimiento con
+  auditoría, y métricas de SLA. También se probaron la reversión y la reaplicación en local.
+- Se encontró y corrigió un error: con triggers diferidos, R5 tomaba como «anterior» una
+  respuesta posterior de la misma transacción. Se pasó a triggers inmediatos.
+- Las pruebas de la Fase 5 ya no dependen de los datos de las pruebas E2E.
+- Playwright, **ciclo completo de una alerta**:
+  1. El contacto de prueba responde en Android con nota 2, rojo, «reembolso» y pedido de
+     contacto. Se generan R1, R2 y R4 con su vencimiento.
+  2. El mentor no entra a la bandeja ni al caso.
+  3. El coach ve la R1 en la bandeja sin identidades, abre el caso y pide la identidad, lo
+     que queda auditado.
+  4. Marca «En contacto» con una nota y luego «Resuelta».
+  5. **Tiempo hasta el contacto medido: 21 s, en plazo.**
+- Resumen diario: 401 sin el secreto o con uno incorrecto; con el secreto, 1 correo al
+  contacto de prueba, registrado en `cp_envios`. En total van **5 correos, todos al contacto de
+  prueba**.
+
 ## Fase 5 · Tableros (25 sep 2026)
 
 ### Qué se construyó
@@ -262,6 +316,7 @@ restablecer desde /admin de ClassVote.
 
 ### Pendiente
 
+- Cargar en `cp_config.ghl_contacto_resumen` el contact_id de Mike en GHL (resumen diario).
 - Workflows de gate en GHL: agregar la acción Send Email (ver Fase 4). Lo hace Santi.
 - Cargar los Rangos de cada nivel en `cp_config.rangos_por_nivel`.
 - Definir el campo de GHL con el nivel del alumno (`ghl_campo_nivel`); sin él, el correo real no sale para los Cinturones.

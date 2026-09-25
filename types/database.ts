@@ -108,3 +108,33 @@ export type SesionPublica = {
   mentores: string | null;
   es_prueba: boolean;
 };
+
+// Fila de cp_bandeja (sin identidades).
+export type AlertaBandeja = {
+  id: string;
+  regla: string;
+  gravedad: Gravedad;
+  estado: AlertaEstado;
+  creado_en: string;
+  vence_en: string | null;
+  primer_contacto_en: string | null;
+  resuelta_en: string | null;
+  resumen: string | null;
+  contacto_posible: boolean;
+  respuesta_id: string | null;
+  encuesta: "clase" | "cinturon" | "buzon" | null;
+  grupo: string | null;
+  grupo_slug: string | null;
+  tipo_sesion: TipoSesion | null;
+  fecha_clase: string | null;
+  csat: number | null;
+  nps: number | null;
+  nivel: number | null;
+  texto_mantener: string | null;
+  texto_cambiar: string | null;
+  texto_cambio_nivel: string | null;
+  texto_buzon: string | null;
+  mentor: string | null;
+  notas: { autor: string | null; texto: string; en: string }[];
+  hora_local: string | null;
+};

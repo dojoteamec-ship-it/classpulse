@@ -41,7 +41,7 @@ begin
   end if;
   if not exists (select 1 from cp_referencia_academia(hoy - 90, true) where tipo_sesion = 'kata' and n >= 2) then raise exception 'FALLA: la referencia no agrega a la academia'; end if;
   if (select count(*) from cp_aprobaciones) <> 0 then raise exception 'FALLA: mentor lee aprobaciones'; end if;
-  begin insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados) values (1, 'Rango 1', '2026-09-01', 10, 8);
+  begin insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados) values (1, 'Rango 1', '2000-01-01', 10, 8);
     raise exception 'FALLA: mentor carga aprobaciones';
   exception when insufficient_privilege then null; end;
   reset role;
@@ -49,15 +49,15 @@ begin
   -- Super admin carga; coach lee pero no escribe.
   set local role authenticated;
   perform set_config('request.jwt.claim.sub', u_adm, true);
-  insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados, es_prueba) values (1, 'Rango 1', '2026-09-01', 10, 8, true);
-  begin insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados) values (1, 'Rango 2', '2026-09-01', 5, 8);
+  insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados, es_prueba) values (1, 'Rango 1', '2000-01-01', 10, 8, true);
+  begin insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados) values (1, 'Rango 2', '2000-01-01', 5, 8);
     raise exception 'FALLA: más aprobados que presentados';
   exception when check_violation then null; end;
   reset role;
   set local role authenticated;
   perform set_config('request.jwt.claim.sub', u_coach, true);
-  if (select count(*) from cp_aprobaciones where rango = 'Rango 1') <> 1 then raise exception 'FALLA: coach no lee aprobaciones'; end if;
-  begin insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados) values (2, 'Rango 1', '2026-09-01', 10, 8);
+  if (select count(*) from cp_aprobaciones where rango = 'Rango 1' and periodo = '2000-01-01') <> 1 then raise exception 'FALLA: coach no lee aprobaciones'; end if;
+  begin insert into cp_aprobaciones (nivel, rango, periodo, presentados, aprobados) values (2, 'Rango 1', '2000-01-01', 10, 8);
     raise exception 'FALLA: coach carga aprobaciones';
   exception when insufficient_privilege then null; end;
   reset role;
