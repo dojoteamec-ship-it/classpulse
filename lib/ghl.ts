@@ -2,9 +2,15 @@ import "server-only";
 
 // Cliente mínimo de la API v2 de HighLevel con el Private Integration Token
 // (solo servidor). Endpoints verificados en marketplace.gohighlevel.com/docs:
-//   GET /contacts/{contactId}   (Contacts · Get Contact), Version 2021-07-28.
+//   GET  /contacts/{contactId}      (Contacts · Get Contact), Version 2021-07-28.
+//   POST /contacts/search           (Contacts · Search Contacts), Version 2021-07-28.
+//   POST /conversations/messages    (Conversations · Send a new message, type Email),
+//                                   Version 2021-04-15. Sin emailFrom usa el remitente
+//                                   por defecto de la subcuenta.
+// Verificados en vivo el 25 sep 2026 (búsqueda por tag y un correo al contacto de prueba).
 const BASE = "https://services.leadconnectorhq.com";
 const VERSION = "2021-07-28";
+const VERSION_MENSAJES = "2021-04-15";
 
 export type ContactoGhl = {
   id: string;
@@ -72,4 +78,40 @@ export async function obtenerContacto(id: string): Promise<ContactoGhl | null> {
     tags: (c.tags ?? []).map((t) => t.toLowerCase()),
     campos: Object.fromEntries((c.customFields ?? []).map((f) => [f.id, f.value])),
   };
+}
+
+// Contactos de la subcuenta que cumplen un filtro (tag o campo personalizado).
+// Solo se usa en modo real; en modo prueba los destinatarios son GHL_CONTACTOS_PRUEBA.
+export async function buscarContactos(filtro: { tag: string } | { campo: string; valor: string | number }) {
+  const filtros =
+    "tag" in filtro
+      ? [{ field: "tags", operator: "eq", value: filtro.tag }]
+      : [{ field: `customFields.${filtro.campo}`, operator: "eq", value: filtro.valor }];
+  const salida: { id: string; nombre: string }[] = [];
+  for (let pagina = 1; pagina <= 50; pagina++) {
+    const r = await llamar("/contacts/search", {
+      method: "POST",
+      body: JSON.stringify({ locationId: process.env.GHL_LOCATION_ID, page: pagina, pageLimit: 100, filters: filtros }),
+    });
+    if (!r.ok) throw new Error(`GHL búsqueda ${r.status}`);
+    const { contacts = [] } = (await r.json()) as { contacts?: { id: string; firstName?: string; lastName?: string }[] };
+    salida.push(...contacts.map((c) => ({ id: c.id, nombre: [c.firstName, c.lastName].filter(Boolean).join(" ") || "Alumno" })));
+    if (contacts.length < 100) break;
+  }
+  return salida;
+}
+
+// Envía un correo al contacto. En modo prueba se niega a escribir a cualquiera que
+// no esté en GHL_CONTACTOS_PRUEBA (segunda barrera, además de la selección).
+export async function enviarCorreo(contactId: string, asunto: string, html: string, texto: string) {
+  if (modoEnvio() === "prueba" && !esContactoDePrueba(contactId)) {
+    throw new Error("Modo prueba: destinatario fuera de GHL_CONTACTOS_PRUEBA");
+  }
+  const r = await llamar("/conversations/messages", {
+    method: "POST",
+    headers: { Version: VERSION_MENSAJES },
+    body: JSON.stringify({ type: "Email", contactId, subject: asunto, html, message: texto }),
+  });
+  if (!r.ok) throw new Error(`GHL correo ${r.status}`);
+  return (await r.json()) as { messageId?: string };
 }

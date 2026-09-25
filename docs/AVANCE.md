@@ -3,6 +3,65 @@
 Registro de cada fase: qué se hizo, qué se probó y qué quedó pendiente. Lo más reciente va
 arriba.
 
+## Fase 4 · Correo por GHL y NPS de Cinturón (25 sep 2026)
+
+### Verificación de la API de GHL (en vivo)
+
+- `POST /contacts/search` (Version 2021-07-28) con filtro `tags eq <tag>`: funciona (el
+  contacto de prueba aparece con su tag). La subcuenta tiene 1.802 contactos.
+- `POST /conversations/messages` tipo Email (Version 2021-04-15), sin `emailFrom` (usa el
+  remitente por defecto de la subcuenta): «Email queued successfully». Se enviaron **3 correos
+  en total, todos al contacto de prueba** `xZB5m9rMiJ4dz7Ekusib` (1 de verificación y 2 de las
+  pruebas E2E).
+
+### Qué se construyó
+
+- `migrations/cp_0004_correo_cinturon.sql` (+ `cp_0004_down.sql`, que restaura la versión de
+  `cp_registrar_respuesta` de cp_0003):
+  - Columnas de la encuesta de Cinturón en `cp_respuestas` (`nps`, `nes`, `aplicacion`,
+    `dificultad`, `ces`, `clientes_activos`, `rango_top`, `texto_cambio_nivel`).
+  - `cp_registrar_cinturon()` (solo service role) y `cp_guardar_identidad()` compartida.
+  - Deduplicación por contacto y nivel con una pimienta secreta en `cp_secretos` (solo service
+    role): sin ella, el hash no se puede vincular con un contact_id.
+  - `cp_envios`: registro de cada correo (enviado, omitido o error). Solo el super admin lo lee
+    porque lleva el contact_id.
+  - `cp_config.rangos_por_nivel` (vacío: la pregunta 7 es texto libre hasta que se carguen).
+- Al abrir una sesión, el correo sale con `after()` (no bloquea al mentor):
+  - **Modo prueba** (hoy, en todos los entornos): solo a `GHL_CONTACTOS_PRUEBA`, y solo si el
+    Grupo tiene el correo encendido o la sesión es de prueba. `enviarCorreo()` además se niega
+    a escribir a cualquier otro contacto (segunda barrera).
+  - **Modo real** (cuando Santi lo cambie): Grupos de clientes por tag; Cinturones por
+    `ghl_campo_nivel`. Mientras ese campo sea null, **no se envía** a los Cinturones (se
+    registra un aviso). Máximo 1 correo por alumno cada 48 h (`correo_intervalo_horas`).
+  - Enlace: `/f?c=<contact_id>&s=<sesión>`. El panel de la sesión muestra los correos enviados.
+- `/cinturon?c=<contact_id>&n=<N>`: las 9 preguntas de 3.3 (clientes activos solo en los
+  niveles 3 a 6), con identidad al final. La identidad sale de GHL.
+
+### Workflow de gate en GHL (lo hace Santi; ClassPulse no publica nada en GHL)
+
+En cada Workflow de gate («aprobó el Nivel N»), agregar una acción **Send Email** con un
+botón o enlace a:
+
+```
+https://classpulse-jade.vercel.app/cinturon?c={{contact.id}}&n=N
+```
+
+(N = número del nivel aprobado, de 0 a 6.) Texto sugerido, sin guiones: «¡Felicitaciones por
+aprobar el Cinturón X! Cuéntanos cómo fue tu nivel; te toma unos 2 minutos».
+
+### Qué se probó
+
+- `pruebas/rls/fase4_cinturon_envios.sql` en local y contra la base real; reversión y
+  reaplicación en local (la encuesta de clase sigue pasando tras la reversión).
+- Las pruebas RLS de las Fases 2 y 3 ya no dependen de las sesiones de prueba que dejan
+  abiertas las pruebas E2E.
+- Playwright (build local + Supabase y GHL reales): el mentor abre una sesión de prueba → 1
+  correo **enviado al contacto de prueba** y registrado en `cp_envios`; el panel muestra «1
+  correos enviados»; el enlace del correo abre la encuesta de esa sesión (Pixel 7). Encuesta
+  de Cinturón del Nivel 4 en iPhone: guardada con todos los campos, `es_prueba` e identidad
+  desde GHL; no se repite el mismo nivel; el Nivel 1 no pregunta clientes activos; nivel
+  inexistente rechazado; sin guiones ni scroll horizontal.
+
 ## Fase 3 · Encuesta de clase (25 sep 2026)
 
 ### Qué se construyó
@@ -165,6 +224,10 @@ allí). Están marcados `es_prueba` en `cp_acceso`. Las contraseñas no se publi
 restablecer desde /admin de ClassVote.
 
 ### Pendiente
+
+- Workflows de gate en GHL: agregar la acción Send Email (ver Fase 4). Lo hace Santi.
+- Cargar los Rangos de cada nivel en `cp_config.rangos_por_nivel`.
+- Definir el campo de GHL con el nivel del alumno (`ghl_campo_nivel`); sin él, el correo real no sale para los Cinturones.
 
 - Cambiar la cuenta coach al correo personal de Mike cuando esté definido.
 - ~~Vercel: proyecto classpulse~~ Resuelto en la retoma autónoma (ver arriba).

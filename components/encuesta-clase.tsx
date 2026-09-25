@@ -3,62 +3,14 @@
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { enviarRespuestaClase } from "@/app/encuesta/acciones";
-import {
-  ASISTENCIA,
-  AVISO_ANONIMO,
-  AVISO_MENTOR,
-  CANALES_CONTACTO,
-  CARITAS,
-  DISTINTIVA,
-  LINEA_SESGO,
-  MAX_TEXTO,
-  MODOS,
-  MOTIVOS_CONTACTO,
-  MOTIVOS_INASISTENCIA,
-  chipsPara,
-  type Asistencia,
-  type ModoIdentidad,
-} from "@/lib/encuesta";
+import { Chip, EleccionIdentidad, IDENTIDAD_VACIA, Opcion, identidadCompleta, type Identidad } from "@/components/identidad-alumno";
+import { ASISTENCIA, CARITAS, DISTINTIVA, LINEA_SESGO, MAX_TEXTO, MOTIVOS_INASISTENCIA, chipsPara, type Asistencia } from "@/lib/encuesta";
 import { obtenerFingerprint } from "@/lib/fingerprint";
 import { formatearClase } from "@/lib/fecha";
 import { TIPO_SESION } from "@/lib/sesiones";
 import type { SesionPublica } from "@/types/database";
 
 type Paso = "asistencia" | "motivo" | "csat" | "distintiva" | "detalle" | "identidad" | "gracias";
-
-// Botón grande de opción única. Todo texto de esta pantalla lo lee el alumno:
-// sin guiones ni rayas.
-function Opcion({ activa, onClick, children }: { activa?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={activa}
-      className={`w-full rounded-2xl border px-4 py-3.5 text-left text-base font-medium transition-colors ${
-        activa
-          ? "border-cian-400/60 bg-cian-400/15 text-cian-200"
-          : "border-white/10 bg-white/[0.04] text-washi/85 hover:border-white/25 active:bg-white/10"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={activo}
-      className={`rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
-        activo ? "border-cian-400/60 bg-cian-400/15 text-cian-200" : "border-white/10 bg-white/[0.04] text-washi/75 hover:border-white/25"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function EncuestaClase({
   sesion,
@@ -78,13 +30,7 @@ export function EncuestaClase({
   const [chips, setChips] = useState<string[]>([]);
   const [mantener, setMantener] = useState("");
   const [cambiar, setCambiar] = useState("");
-  const [modo, setModo] = useState<ModoIdentidad>();
-  const [nombre, setNombre] = useState("");
-  const [email, setEmail] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [cMotivo, setCMotivo] = useState<string>();
-  const [cCanal, setCCanal] = useState<string>();
-  const [cMensaje, setCMensaje] = useState("");
+  const [ident, setIdent] = useState<Identidad>(IDENTIDAD_VACIA);
   const [error, setError] = useState<string>();
   const [enviando, iniciar] = useTransition();
 
@@ -121,13 +67,13 @@ export function EncuestaClase({
         chips,
         textoMantener: mantener,
         textoCambiar: cambiar,
-        modo: modo!,
-        nombre,
-        email,
-        telefono,
-        contactoMotivo: cMotivo,
-        contactoCanal: cCanal,
-        contactoMensaje: cMensaje,
+        modo: ident.modo!,
+        nombre: ident.nombre,
+        email: ident.email,
+        telefono: ident.telefono,
+        contactoMotivo: ident.cMotivo,
+        contactoCanal: ident.cCanal,
+        contactoMensaje: ident.cMensaje,
         segundos: Math.round((Date.now() - (inicio.current ?? Date.now())) / 1000),
         fingerprint: contacto ? undefined : obtenerFingerprint(),
         contactId: contacto?.id,
@@ -136,11 +82,6 @@ export function EncuestaClase({
       else setError(r.error);
     });
   }
-
-  const puedeEnviar =
-    !!modo &&
-    (modo === "anonimo" || contacto !== null || (nombre.trim().length >= 2 && (email.trim() || telefono.trim()))) &&
-    (modo !== "contacto" || (!!cMotivo && !!cCanal));
 
   return (
     <div className="flex flex-col gap-6">
@@ -296,70 +237,8 @@ export function EncuestaClase({
         {paso === "identidad" && (
           <>
             <h1 className="titular text-3xl">¿Cómo quieres enviarla?</h1>
-            <div className="flex flex-col gap-2.5">
-              {MODOS.map((m) => (
-                <Opcion key={m.codigo} activa={modo === m.codigo} onClick={() => setModo(m.codigo)}>
-                  <span className="block">{m.texto}</span>
-                  <span className="mt-0.5 block text-sm font-normal text-washi/50">{m.detalle}</span>
-                </Opcion>
-              ))}
-            </div>
-
-            {modo === "anonimo" && (
-              <p className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-washi/70">{AVISO_ANONIMO}</p>
-            )}
-
-            {modo && modo !== "anonimo" && contacto && (
-              <p className="text-sm text-washi/60">Enviarás tu respuesta como {contacto.nombre}.</p>
-            )}
-            {modo && modo !== "anonimo" && !contacto && (
-              <div className="flex flex-col gap-3">
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-washi/80">
-                  Tu nombre
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} autoComplete="name" className="campo font-normal" />
-                </label>
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-washi/80">
-                  Tu correo
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} autoComplete="email" className="campo font-normal" />
-                </label>
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-washi/80">
-                  Tu WhatsApp (si prefieres)
-                  <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} maxLength={40} autoComplete="tel" className="campo font-normal" />
-                </label>
-              </div>
-            )}
-
-            {modo === "contacto" && (
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-washi/80">¿Sobre qué quieres hablar?</span>
-                  <div className="flex flex-wrap gap-2">
-                    {MOTIVOS_CONTACTO.map((m) => (
-                      <Chip key={m.codigo} activo={cMotivo === m.codigo} onClick={() => setCMotivo(m.codigo)}>
-                        {m.texto}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-washi/80">¿Cómo prefieres que te contactemos?</span>
-                  <div className="flex flex-wrap gap-2">
-                    {CANALES_CONTACTO.map((c) => (
-                      <Chip key={c.codigo} activo={cCanal === c.codigo} onClick={() => setCCanal(c.codigo)}>
-                        {c.texto}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-washi/80">
-                  Mensaje para Mike (opcional)
-                  <textarea value={cMensaje} onChange={(e) => setCMensaje(e.target.value)} maxLength={1000} rows={3} className="campo font-normal" />
-                </label>
-              </div>
-            )}
-
-            <p className="text-sm text-washi/60">{AVISO_MENTOR}</p>
-            <button type="button" onClick={enviar} disabled={!puedeEnviar || enviando} className="boton-primario w-full">
+            <EleccionIdentidad valor={ident} cambiar={setIdent} contacto={contacto} />
+            <button type="button" onClick={enviar} disabled={!identidadCompleta(ident, contacto !== null) || enviando} className="boton-primario w-full">
               {enviando ? "Enviando…" : "Enviar"}
             </button>
           </>
@@ -373,7 +252,7 @@ export function EncuestaClase({
             <h1 className="titular text-3xl">¡Gracias!</h1>
             <p className="leading-relaxed text-washi/60">
               Tu feedback ya llegó. Con él mejoramos cada clase.
-              {modo === "contacto" && " Mike te contactará en un día hábil."}
+              {ident.modo === "contacto" && " Mike te contactará en un día hábil."}
             </p>
           </div>
         )}
